@@ -45,6 +45,7 @@ import com.google.common.collect.Multimap;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.text.DecimalFormat;
 
 import javax.annotation.concurrent.GuardedBy;
 
@@ -202,6 +203,7 @@ public class DownloadNotifier {
             // Calculate and show progress
             String remainingText = null;
             String percentText = null;
+            String speedText = null;
             if (type == TYPE_ACTIVE) {
                 long current = 0;
                 long total = 0;
@@ -221,6 +223,25 @@ public class DownloadNotifier {
                     percentText = res.getString(R.string.download_percent, percent);
 
                     if (speed > 0) {
+
+                    	// Determine postfix for download speed (B/s, KB/s or MB/s)
+                    	// and round the result
+                    	String postFix = null;
+                    	double speedNormalized = speed;
+
+                    	if (speed < 1024) {
+                    		postFix = " B/s";
+                    	} else if (speed < 1048576) {
+                    		postFix = " KB/s";
+                    		speedNormalized = (double)speed / 1024.0;
+                    	} else if (speed < 1073741824) {
+                    		postFix = " MB/s";
+                    		speedNormalized = (double)speed / 1048576.0;
+                    	}
+
+                    	speedText = (new DecimalFormat("#.#").format(speedNormalized).toString()) 
+                    				+ postFix;
+
                         final long remainingMillis = ((total - current) * 1000) / speed;
                         remainingText = res.getString(R.string.download_remaining,
                                 DateUtils.formatDuration(remainingMillis));
@@ -235,6 +256,52 @@ public class DownloadNotifier {
             // Build titles and description
             final Notification notif;
             if (cluster.size() == 1) {
+				final Notification.InboxStyle inboxStyle = new Notification.InboxStyle(builder);
+
+				final DownloadInfo info = cluster.iterator().next();
+
+				inboxStyle.addLine(getDownloadTitle(res, info));
+				builder.setContentTitle(getDownloadTitle(res, info));
+
+				String contentText = null;
+
+				if (type == TYPE_ACTIVE) {
+                    if (!TextUtils.isEmpty(info.mDescription)) {
+                        builder.setContentText(info.mDescription);
+                    } else {
+                    	builder.setContentText(remainingText);  
+                    }
+
+                    if (TextUtils.isEmpty(speedText) || TextUtils.isEmpty(remainingText)) {
+                		contentText = res.getString(R.string.download_running);
+                    } else {
+                    	contentText = speedText + ", " + remainingText;
+                    }
+                    
+                    inboxStyle.setSummaryText(contentText);
+                    builder.setContentInfo(percentText);                    
+
+                } else if (type == TYPE_WAITING) {
+                    builder.setContentText(
+                            res.getString(R.string.notification_need_wifi_for_size));
+
+                } else if (type == TYPE_COMPLETE) {
+                    if (Downloads.Impl.isStatusError(info.mStatus)) {
+                        contentText = res.getString(R.string.notification_download_failed);
+
+                        builder.setContentText(contentText);
+                        inboxStyle.setSummaryText(contentText);
+                    } else if (Downloads.Impl.isStatusSuccess(info.mStatus)) {
+                        contentText = res.getString(R.string.notification_download_complete);
+
+                        builder.setContentText(contentText);
+                        inboxStyle.setSummaryText(contentText);
+                    }
+                }
+
+				notif = inboxStyle.build();
+
+                /*
                 final DownloadInfo info = cluster.iterator().next();
 
                 builder.setContentTitle(getDownloadTitle(res, info));
@@ -261,6 +328,7 @@ public class DownloadNotifier {
                 }
 
                 notif = builder.build();
+				*/
 
             } else {
                 final Notification.InboxStyle inboxStyle = new Notification.InboxStyle(builder);
@@ -274,7 +342,7 @@ public class DownloadNotifier {
                             R.plurals.notif_summary_active, cluster.size(), cluster.size()));
                     builder.setContentText(remainingText);
                     builder.setContentInfo(percentText);
-                    inboxStyle.setSummaryText(remainingText);
+                    inboxStyle.setSummaryText(speedText + ", " + remainingText);
 
                 } else if (type == TYPE_WAITING) {
                     builder.setContentTitle(res.getQuantityString(
