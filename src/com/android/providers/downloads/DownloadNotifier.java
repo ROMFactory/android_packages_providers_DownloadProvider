@@ -231,7 +231,7 @@ public class DownloadNotifier {
 
                     	// Determine postfix for download speed (B/s, KB/s or MB/s)
                     	String postFix = null;
-                    	double speedNormalized;
+                    	double speedNormalized = 0.0;
 
                     	if (speed < 1024) {
                     		postFix = " B/s";
@@ -264,7 +264,7 @@ public class DownloadNotifier {
 
 				final DownloadInfo info = cluster.iterator().next();
 
-				final String filename = getDownloadTitle(res, info);
+				final String filename = getDownloadTitle(res, info).toString();
 
 				inboxStyle.addLine(filename);
 				builder.setContentTitle(filename);
