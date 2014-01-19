@@ -80,11 +80,16 @@ public class DownloadNotifier {
     private final LongSparseLongArray mDownloadSpeed = new LongSparseLongArray();
 
     /**
-     * Last time speed was reproted, mapped from {@link DownloadInfo#mId} to
+     * Last time speed was reported, mapped from {@link DownloadInfo#mId} to
      * {@link SystemClock#elapsedRealtime()}.
      */
     @GuardedBy("mDownloadSpeed")
     private final LongSparseLongArray mDownloadTouch = new LongSparseLongArray();
+
+    /**
+     * Formatter for giving transfer speeds with maximum of one decimal places
+     */
+    private final DecimalFormat mFormatter = new DecimalFormat("#.#");
 
     public DownloadNotifier(Context context) {
         mContext = context;
@@ -225,12 +230,12 @@ public class DownloadNotifier {
                     if (speed > 0) {
 
                     	// Determine postfix for download speed (B/s, KB/s or MB/s)
-                    	// and round the result
                     	String postFix = null;
-                    	double speedNormalized = speed;
+                    	double speedNormalized;
 
                     	if (speed < 1024) {
                     		postFix = " B/s";
+                    		speedNormalized = speed;
                     	} else if (speed < 1048576) {
                     		postFix = " KB/s";
                     		speedNormalized = (double)speed / 1024.0;
@@ -239,8 +244,7 @@ public class DownloadNotifier {
                     		speedNormalized = (double)speed / 1048576.0;
                     	}
 
-                    	speedText = (new DecimalFormat("#.#").format(speedNormalized).toString()) 
-                    				+ postFix;
+                    	speedText = mFormatter.format(speedNormalized) + postFix;
 
                         final long remainingMillis = ((total - current) * 1000) / speed;
                         remainingText = res.getString(R.string.download_remaining,
@@ -260,8 +264,10 @@ public class DownloadNotifier {
 
 				final DownloadInfo info = cluster.iterator().next();
 
-				inboxStyle.addLine(getDownloadTitle(res, info));
-				builder.setContentTitle(getDownloadTitle(res, info));
+				final String filename = getDownloadTitle(res, info);
+
+				inboxStyle.addLine(filename);
+				builder.setContentTitle(filename);
 
 				String contentText = null;
 
@@ -300,35 +306,6 @@ public class DownloadNotifier {
                 }
 
 				notif = inboxStyle.build();
-
-                /*
-                final DownloadInfo info = cluster.iterator().next();
-
-                builder.setContentTitle(getDownloadTitle(res, info));
-
-                if (type == TYPE_ACTIVE) {
-                    if (!TextUtils.isEmpty(info.mDescription)) {
-                        builder.setContentText(info.mDescription);
-                    } else {
-                        builder.setContentText(remainingText);
-                    }
-                    builder.setContentInfo(percentText);
-
-                } else if (type == TYPE_WAITING) {
-                    builder.setContentText(
-                            res.getString(R.string.notification_need_wifi_for_size));
-
-                } else if (type == TYPE_COMPLETE) {
-                    if (Downloads.Impl.isStatusError(info.mStatus)) {
-                        builder.setContentText(res.getText(R.string.notification_download_failed));
-                    } else if (Downloads.Impl.isStatusSuccess(info.mStatus)) {
-                        builder.setContentText(
-                                res.getText(R.string.notification_download_complete));
-                    }
-                }
-
-                notif = builder.build();
-				*/
 
             } else {
                 final Notification.InboxStyle inboxStyle = new Notification.InboxStyle(builder);
